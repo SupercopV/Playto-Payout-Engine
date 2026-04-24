@@ -1,0 +1,54 @@
+services:
+  db:
+    image: postgres:15
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+    environment:
+      - POSTGRES_DB=playto_db
+      - POSTGRES_USER=playto_user
+      - POSTGRES_PASSWORD=playto_pass
+
+  redis:
+    image: redis:7-alpine
+
+  backend:
+    build: ./backend
+    command: python manage.py runserver 0.0.0.0:8000
+    volumes:
+      - ./backend:/app
+    environment:
+      - DATABASE_URL=postgres://playto_user:playto_pass@db:5432/playto_db
+      - REDIS_URL=redis://redis:6379/0
+      - DEBUG=1
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+      - redis
+
+  worker:
+    build: ./backend
+    command: celery -A playto_engine worker --loglevel=info
+    volumes:
+      - ./backend:/app
+    environment:
+      - DATABASE_URL=postgres://playto_user:playto_pass@db:5432/playto_db
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - db
+      - redis
+
+  beat:
+    build: ./backend
+    command: celery -A playto_engine beat --loglevel=info
+    volumes:
+      - ./backend:/app
+    environment:
+      - DATABASE_URL=postgres://playto_user:playto_pass@db:5432/playto_db
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - db
+      - redis
+
+volumes:
+  postgres_data:
